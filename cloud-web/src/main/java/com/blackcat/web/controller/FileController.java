@@ -75,8 +75,8 @@ public class FileController {
 
     // 文件合并接口
     @GetMapping("/merge")
-    public Result mergeChunks(@RequestParam String identifier) {
-        return fileInfoService.mergeChunks(identifier);
+    public Result mergeChunks(@RequestParam String requestId) {
+        return fileInfoService.mergeChunks(requestId);
     }
 
     // 测试接口
