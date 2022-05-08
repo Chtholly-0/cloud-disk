@@ -632,7 +632,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             FileUtil.del(folderPath);
         } else {
             // 删除临时文件
-            FileUtil.del(tempFile);
+            FileUtil.del(tempFilePath);
         }
         Timestamp nowTime = DateTime.now().toTimestamp();
         // 存储文件信息
