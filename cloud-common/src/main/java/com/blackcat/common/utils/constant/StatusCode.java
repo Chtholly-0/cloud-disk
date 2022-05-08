@@ -1,15 +1,33 @@
 package com.blackcat.common.utils.constant;
 
 public class StatusCode {
-    public static final int OK = 200; //成功
-    public static final int ERROR = 201; //失败
-    public static final int LOGIN_ERROR = 202; //未登录
-    public static final int ACCESS_ERROR = 203; //权限不足
-    public static final int REMOTE_ERROR = 204; //远程调用失败
-    public static final int REP_ERROR = 205; //重复操作
+    /**
+     * 操作成功
+     */
+    public static final int OK = 200;
 
     /**
-     * 系统出错
+     * 错误
+     */
+    public static final int ERROR = 201;
+
+    /**
+     * 未登录
+     */
+    public static final int LOGIN_ERROR = 202; //未登录
+
+    /**
+     * 参数非法错误
+     */
+    public static final int PARAMS_ERROR = 300;
+
+    /**
+     * 业务错误
+     */
+    public static final int SERVICE_ERROR = 301;
+
+    /**
+     * 系统异常出错
      */
     public static final int SYSTEM_ERROR = 400;
 }

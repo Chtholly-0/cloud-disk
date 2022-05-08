@@ -1,17 +1,22 @@
 package com.blackcat.common.utils.constant;
 
 public class MessageConstant {
+    /**
+     * 用户相关
+     */
     public static final String ACCOUNT_ID_ERROR = "用户ID不能为空，且不能超过20位";
     public static final String PASSWORD_ERROR = "密码长度不正确，请输入6~15位长度的密码";
     public static final String ACCOUNT_ID_ERROR2 = "用户id重复，注册失败";
     public static final String REGISTER_ERROR = "注册失败";
     public static final String REGISTER_SUCCESS = "注册成功";
-
     public static final String LOGIN_SUCCESS = "登录成功";
     public static final String LOGIN_ERROR = "账号或密码错误";
     public static final String NOT_LOGIN = "未登录";
     public static final String LOGIN_ERROR2 = "未输入账号或密码";
 
+    /**
+     * 业务相关
+     */
     public static final String OPERATION_SUCCESS = "操作成功";
     public static final String OPERATION_ERROR = "操作失败";
     public static final String SEARCH_SUCCESS = "查找成功";

@@ -61,7 +61,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         String accountId = UserHolder.getUser().getAccountId();
         // 判断文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 查询文件
         List<FileInfo> fileInfoList = query()
@@ -76,7 +76,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     public Result getListByClass(String fileClass) {
         if (!isfileClassExist(fileClass)) {
-            return new Result(StatusCode.ERROR, PARAMS_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
@@ -95,12 +95,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         fileName = removeLRBlank(fileName);
         // 匹配文件夹名称不能包含非法字符
         if (isNotValidFileName(fileName)) {
-            return new Result(StatusCode.ERROR, FILE_NAME_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
         }
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
         if (isFilePathNotExist(accountId, filePath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 获取当前时间
         Timestamp nowTime = DateTime.now().toTimestamp();
@@ -112,7 +112,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 .list();
         for (FileInfo fileInfo : list) {
             if (fileInfo.getFileName().equals(fileName)) {
-                return new Result(StatusCode.ERROR, FILE_NAME_REPEAT_ERROR);
+                return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_REPEAT_ERROR);
             }
         }
         FileInfo fileInfo = new FileInfo();
@@ -125,7 +125,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         if (save(fileInfo)) {
             return new Result(StatusCode.OK, CREATE_SUCCESS);
         }
-        return new Result(StatusCode.ERROR, CREATE_ERROR);
+        return new Result(StatusCode.SERVICE_ERROR, CREATE_ERROR);
     }
 
     @Override
@@ -135,11 +135,11 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         searchKayWord = URLDecoder.decode(searchKayWord, StandardCharsets.UTF_8);
         // 长度判断
         if (searchKayWord.length() > 255) {
-            return new Result(StatusCode.ERROR, KEY_WORLD_TOO_LONG_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, KEY_WORLD_TOO_LONG_ERROR);
         }
         // 是否合法
         if (isNotValidFileName(searchKayWord)) {
-            return new Result(StatusCode.ERROR, KEY_WORLD_ILLEGAL_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, KEY_WORLD_ILLEGAL_ERROR);
         }
         // 更具关键字模糊匹配获取文件信息列表
         List<FileInfo> fileInfoList = query()
@@ -160,14 +160,14 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         String filePath = fileList.getFilePath();
         // 判断文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 获取文件名列表
         List<String> fileNameList = fileList.getFileNameList();
         // 循环判断文件名是否合法
         for (String temp : fileNameList) {
             if (isNotValidFileName(temp)) {
-                return new Result(StatusCode.ERROR, FILE_NAME_ERROR);
+                return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
             }
         }
         boolean update = update()
@@ -178,21 +178,21 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 .eq(DELETED, false)
                 .update();
         return update ? new Result(StatusCode.OK, OPERATION_SUCCESS) :
-                new Result(StatusCode.ERROR, OPERATION_ERROR);
+                new Result(StatusCode.SERVICE_ERROR, OPERATION_ERROR);
     }
 
     @Override
     public Result fileRename(String filePath, String oldName, String newName) {
         // 文件名是否合法
         if (isNotValidFileName(newName) || isNotValidFileName(oldName)) {
-            return new Result(StatusCode.ERROR, FILE_NAME_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
         }
         // 文件路径解码
         filePath = URLDecoder.decode(filePath, StandardCharsets.UTF_8);
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
         if (isFilePathNotExist(accountId, filePath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         List<FileInfo> list = query()
                 .eq(OWNER_ID, accountId)
@@ -211,12 +211,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         }
         // 如果文件不存在
         if (!isFileExist) {
-            return new Result(StatusCode.ERROR, FILE_NOT_FOUND_ERROR);
+            return new Result(StatusCode.SERVICE_ERROR, FILE_NOT_FOUND_ERROR);
         }
         // 新名字不能重复
         for (FileInfo info : list) {
             if (info.getFileName().equals(newName)) {
-                return new Result(StatusCode.ERROR, FILE_NAME_REPEAT_ERROR);
+                return new Result(StatusCode.SERVICE_ERROR, FILE_NAME_REPEAT_ERROR);
             }
         }
         Timestamp nowTime = DateTime.now().toTimestamp();
@@ -251,7 +251,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 return new Result(StatusCode.OK, RENAME_SUCCESS);
             }
         }
-        return new Result(StatusCode.ERROR, RENAME_ERROR2);
+        return new Result(StatusCode.SERVICE_ERROR, RENAME_ERROR2);
     }
 
     @Override
@@ -263,7 +263,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         } else if (opera.equals("move")) {
             operaFlag = false;
         } else {
-            return new Result(StatusCode.ERROR, PARAMS_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
         // 获取用户名
         String accountId = UserHolder.getUser().getAccountId();
@@ -271,21 +271,21 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         Timestamp nowTime = DateTime.now().toTimestamp();
         // 判断路径是否存在
         if (isFilePathNotExist(accountId, fromPath) || isFilePathNotExist(accountId, toPath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 不能在当前目录下
         if (fromPath.equals(toPath)) {
-            return new Result(StatusCode.ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
+            return new Result(StatusCode.SERVICE_ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
         }
         // 不能在其子目录下
         for (String name : fileNameList) {
             if (toPath.indexOf(fromPath + name + "/") == 0) {
-                return new Result(StatusCode.ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
+                return new Result(StatusCode.SERVICE_ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
             }
         }
         // 选中个数不能为0
         if (fileNameList.size() == 0) {
-            return new Result(StatusCode.ERROR, PARAMS_ERROR);
+            return new Result(StatusCode.SERVICE_ERROR, PARAMS_ERROR);
         }
         // 选中列表
         List<FileInfo> selectedList = query().eq(OWNER_ID, accountId)
@@ -295,7 +295,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 .list();
         // 未找到
         if (selectedList.size() != fileNameList.size()) {
-            return new Result(StatusCode.ERROR, FILE_NOT_FOUND_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NOT_FOUND_ERROR);
         }
         // 获取选中的文件夹下的文件 映射关系 文件夹名称--文件列表
         Map<String, List<FileInfo>> folderMap = new HashMap<>();
@@ -368,7 +368,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             isSuccess = updateBatchById(selectedList);
         }
         return isSuccess ? new Result(StatusCode.OK, operaFlag ? COPY_SUCCESS : MOVE_SUCCESS) :
-                new Result(StatusCode.ERROR, OPERATION_ERROR);
+                new Result(StatusCode.SERVICE_ERROR, OPERATION_ERROR);
     }
 
     @Override
@@ -376,7 +376,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         String identifier = chunk.getIdentifier();
         // 判断md5值是否规范
         if (!identifier.matches("[a-z0-9]+") || identifier.length() != 32) {
-            return new Result(StatusCode.SYSTEM_ERROR, PARAMS_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
         // 获取用户信息已经文件信息
         UserDTO user = UserHolder.getUser();
@@ -386,15 +386,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         Long fileSize = chunk.getTotalSize();
         // 文件名不能非法
         if (isNotValidFileName(filename)) {
-            return new Result(StatusCode.ERROR, FILE_NAME_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
         }
         // 文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
-            return new Result(StatusCode.ERROR, FILE_PATH_NOT_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 空间不足
         if (user.getFreeSpace() < fileSize) {
-            return new Result(StatusCode.ERROR, SPACE_NOT_ENOUGH);
+            return new Result(StatusCode.SERVICE_ERROR, SPACE_NOT_ENOUGH);
         }
         Timestamp nowTime = DateTime.now().toTimestamp();
         FileIdent fileIdent = fileIdentMapper.selectById(identifier);
@@ -466,7 +466,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         // 获取redis信息
         Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(fileUploadKey);
         if (map.size() == 0) {
-            return new Result(StatusCode.ERROR, PARAMS_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
         String fileName = (String) map.get("filename");
         String filePath = (String) map.get("relativePath");
@@ -505,7 +505,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 e.printStackTrace();
             }
         } else { // 没有则返回错误信息
-            return new Result(StatusCode.ERROR, "合并失败, 数据块未上传完");
+            return new Result(StatusCode.SERVICE_ERROR, "合并失败, 数据块未上传完");
         }
         // 计算合并后文件md5值
         String md5 = SecureUtil.md5(mergeFile);
@@ -513,12 +513,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         if (!md5.equals(identifier) || mergeFile.length() != fileSize) {
             FileUtil.del(mergeFile);
             FileUtil.del(tempFile);
-            return new Result(StatusCode.SYSTEM_ERROR, "文件数据异常, 请重新上传");
+            return new Result(StatusCode.SERVICE_ERROR, "文件数据异常, 请重新上传");
         }
         Timestamp nowTime = DateTime.now().toTimestamp();
         // 判断空间是否空余
         if (user.getFreeSpace() < fileSize) {
-            return new Result(StatusCode.ERROR, SPACE_NOT_ENOUGH);
+            return new Result(StatusCode.SERVICE_ERROR, SPACE_NOT_ENOUGH);
         }
         // 存储文件信息
         saveFileInfo(user, filePath, fileName, fileType, fileSize, md5, nowTime, false, trueName);
@@ -605,7 +605,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             String[] split = filePath.split("/");
             int len = split.length;
             if (len == 0) {
-                throw new DefinitionException(StatusCode.ERROR, FILE_PATH_ERROR);
+                throw new DefinitionException(StatusCode.PARAMS_ERROR, FILE_PATH_ERROR);
             }
             StringBuilder path = new StringBuilder("/");
             List<FileInfo> list = query()
@@ -614,7 +614,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                         for (int i = 1; i < len; i++) {
                             String temp = split[i];
                             if (isNotValidFileName(temp)) {
-                                throw new DefinitionException(StatusCode.ERROR, FILE_PATH_ERROR);
+                                throw new DefinitionException(StatusCode.PARAMS_ERROR, FILE_PATH_ERROR);
                             }
                             wrapper.or(k -> k
                                     .eq(FILE_PATH, path.toString())
@@ -631,7 +631,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     .list();
             return list.size() != len - 1;
         }
-        throw new DefinitionException(StatusCode.ERROR, FILE_PATH_ERROR);
+        throw new DefinitionException(StatusCode.PARAMS_ERROR, FILE_PATH_ERROR);
     }
 
     // 获取文件夹路径
