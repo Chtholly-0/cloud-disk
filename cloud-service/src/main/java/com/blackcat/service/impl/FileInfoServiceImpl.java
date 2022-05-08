@@ -1,11 +1,14 @@
 package com.blackcat.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.file.FileNameUtil;
 import cn.hutool.core.net.URLDecoder;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.crypto.SecureUtil;
+import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.blackcat.common.config.exception.DefinitionException;
@@ -23,6 +26,14 @@ import com.blackcat.dao.pojo.FileIdent;
 import com.blackcat.dao.pojo.FileInfo;
 import com.blackcat.dao.pojo.User;
 import com.blackcat.service.IFileInfoService;
+import org.springframework.data.redis.connection.RedisClusterConnection;
+import org.springframework.data.redis.connection.RedisClusterNode;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.jedis.JedisClusterConnection;
+import org.springframework.data.redis.connection.jedis.JedisConnection;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +45,8 @@ import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static com.blackcat.common.utils.constant.DatabaseConstant.*;
 import static com.blackcat.common.utils.constant.MessageConstant.*;
@@ -43,6 +56,8 @@ import static com.blackcat.common.utils.constant.SystemConstant.*;
 @Service
 @Transactional
 public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> implements IFileInfoService {
+    @Resource
+    private FileInfoMapper fileInfoMapper;
 
     @Resource
     private FileIdentMapper fileIdentMapper;
@@ -53,6 +68,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    /**
+     * 根据文件路径获取文件列表
+     *
+     * @param filePath 文件路径
+     * @return
+     */
     @Override
     public Result getListByPath(String filePath) {
         // 解码文件路径
@@ -63,32 +84,72 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         if (isFilePathNotExist(accountId, filePath)) {
             return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
-        // 查询文件
-        List<FileInfo> fileInfoList = query()
-                .select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
-                .eq(OWNER_ID, accountId)
-                .eq(FILE_PATH, filePath)
-                .eq(DELETED, false)
-                .list();
+        String redisKey = fileListKey(accountId, filePath);
+        // 文件信息列表
+        List<FileInfo> fileInfoList;
+        // 如果key存在
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(redisKey))) {
+            fileInfoList = new ArrayList<>();
+            List<String> redisList = stringRedisTemplate.opsForList().range(redisKey, 1, -1);
+            if (redisList != null) {
+                for (String temp : redisList) {
+                    fileInfoList.add(BeanUtil.toBean(temp, FileInfo.class));
+                }
+            }
+        } else {
+            // 条件构造器
+            QueryWrapper<FileInfo> wrapper = new QueryWrapper<>();
+            wrapper.select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
+                    .eq(OWNER_ID, accountId)
+                    .eq(FILE_PATH, filePath)
+                    .eq(DELETED, false);
+            // 查找
+            fileInfoList = fileInfoMapper.selectList(wrapper);
+
+            List<String> redisList = new LinkedList<>();
+            redisList.add("head");
+            for (FileInfo fileInfo : fileInfoList) {
+                redisList.add(JSONUtil.toJsonStr(fileInfo));
+            }
+            stringRedisTemplate.opsForList().rightPushAll(redisKey, redisList);
+            // 10分钟
+            stringRedisTemplate.expire(redisKey, FILE_KEY_TTL, TimeUnit.MINUTES);
+        }
         return new Result(StatusCode.OK, SEARCH_SUCCESS, fileInfoList);
     }
 
+    /**
+     * 根据文件类别获取文件信息列表
+     *
+     * @param fileClass 文件列表
+     * @return
+     */
     @Override
     public Result getListByClass(String fileClass) {
+        // 类型是否存在
         if (!isfileClassExist(fileClass)) {
             return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
-        List<FileInfo> list = query()
-                .select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
+
+        QueryWrapper<FileInfo> wrapper = new QueryWrapper<>();
+        wrapper.select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
                 .eq(OWNER_ID, accountId)
                 .eq(FILE_CLASS, fileClass)
-                .eq(DELETED, false)
-                .list();
-        return new Result(StatusCode.OK, SEARCH_SUCCESS, list);
+                .eq(DELETED, false);
+
+        List<FileInfo> fileInfoList = fileInfoMapper.selectList(wrapper);
+        return new Result(StatusCode.OK, SEARCH_SUCCESS, fileInfoList);
     }
 
+    /**
+     * 创建文件夹
+     *
+     * @param filePath 文件路径
+     * @param fileName 文件名称
+     * @return
+     */
     @Override
     public Result newFolder(String filePath, String fileName) {
         // 去除左右两边空白
@@ -99,22 +160,27 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         }
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
+        // 判断文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
             return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
         // 获取当前时间
         Timestamp nowTime = DateTime.now().toTimestamp();
-        // 查询当前文件夹 通过文件id和用户id
-        List<FileInfo> list = query()
-                .eq(OWNER_ID, accountId)
+
+        List<FileInfo> fileInfoList;
+        // 查询当前文件夹下文件列表
+        QueryWrapper<FileInfo> wrapper = new QueryWrapper<>();
+        wrapper.eq(OWNER_ID, accountId)
                 .eq(FILE_PATH, filePath)
-                .eq(DELETED, false)
-                .list();
-        for (FileInfo fileInfo : list) {
+                .eq(DELETED, false);
+        fileInfoList = fileInfoMapper.selectList(wrapper);
+        // 循环遍历查找是否重名
+        for (FileInfo fileInfo : fileInfoList) {
             if (fileInfo.getFileName().equals(fileName)) {
                 return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_REPEAT_ERROR);
             }
         }
+        // 存储文件信息
         FileInfo fileInfo = new FileInfo();
         fileInfo.setOwnerId(accountId);
         fileInfo.setFilePath(filePath);
@@ -122,16 +188,28 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         fileInfo.setFileType(FOLDER);
         fileInfo.setFileClass(FOLDER);
         fileInfo.setCreateTime(nowTime);
-        if (save(fileInfo)) {
+
+        int insert = fileInfoMapper.insert(fileInfo);
+        if (insert == 1) {
+            // 删除redis
+            String redisKey = fileListKey(accountId, filePath);
+            stringRedisTemplate.delete(redisKey);
             return new Result(StatusCode.OK, CREATE_SUCCESS);
         }
         return new Result(StatusCode.SERVICE_ERROR, CREATE_ERROR);
     }
 
+    /**
+     * 根据关键词查找文件信息列表
+     *
+     * @param searchKayWord 关键词
+     * @return
+     */
     @Override
     public Result searchFiles(String searchKayWord) {
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
+        // 解码关键词
         searchKayWord = URLDecoder.decode(searchKayWord, StandardCharsets.UTF_8);
         // 长度判断
         if (searchKayWord.length() > 255) {
@@ -142,21 +220,29 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             return new Result(StatusCode.PARAMS_ERROR, KEY_WORLD_ILLEGAL_ERROR);
         }
         // 更具关键字模糊匹配获取文件信息列表
-        List<FileInfo> fileInfoList = query()
-                .select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
+        QueryWrapper<FileInfo> wrapper = new QueryWrapper<>();
+        wrapper.select(FILE_PATH, FILE_NAME, FILE_TYPE, FILE_CLASS, FILE_SIZE, CREATE_TIME, UPDATE_TIME)
                 .eq(OWNER_ID, accountId)
                 .like(FILE_NAME, searchKayWord)
-                .eq(DELETED, false)
-                .list();
+                .eq(DELETED, false);
+
+        List<FileInfo> fileInfoList = fileInfoMapper.selectList(wrapper);
         return new Result(StatusCode.OK, OPERATION_SUCCESS, fileInfoList);
     }
 
+    /**
+     * 删除文件信息
+     *
+     * @param fileList 要删除的文件列表
+     * @return
+     */
     @Override
     public Result fileDelete(FileDeletedList fileList) {
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
+        // 获取当前时间
         Timestamp nowTime = DateTime.now().toTimestamp();
-
+        // 获取文件路径
         String filePath = fileList.getFilePath();
         // 判断文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
@@ -170,17 +256,29 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
             }
         }
-        boolean update = update()
-                .set(DELETED, true)
+        // 修改
+        UpdateWrapper<FileInfo> wrapper = new UpdateWrapper<>();
+        wrapper.set(DELETED, true)
                 .set(UPDATE_TIME, nowTime)
                 .eq(FILE_PATH, filePath)
                 .in(FILE_NAME, fileNameList)
-                .eq(DELETED, false)
-                .update();
-        return update ? new Result(StatusCode.OK, OPERATION_SUCCESS) :
-                new Result(StatusCode.SERVICE_ERROR, OPERATION_ERROR);
+                .eq(DELETED, false);
+        fileInfoMapper.update(null, wrapper);
+        // 删除redis
+        String redisKey = fileListKey(accountId, filePath);
+        stringRedisTemplate.delete(redisKey);
+
+        return new Result(StatusCode.OK, OPERATION_SUCCESS);
     }
 
+    /**
+     * 文件重命名
+     *
+     * @param filePath 文件路径
+     * @param oldName  旧名称
+     * @param newName  新名称
+     * @return
+     */
     @Override
     public Result fileRename(String filePath, String oldName, String newName) {
         // 文件名是否合法
@@ -191,69 +289,86 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         filePath = URLDecoder.decode(filePath, StandardCharsets.UTF_8);
         // 获取用户id
         String accountId = UserHolder.getUser().getAccountId();
+        // 文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
             return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
-        List<FileInfo> list = query()
-                .eq(OWNER_ID, accountId)
+        // 构造条件构造器
+        QueryWrapper<FileInfo> query = new QueryWrapper<>();
+        query.eq(OWNER_ID, accountId)
                 .eq(FILE_PATH, filePath)
-                .eq(DELETED, false)
-                .list();
+                .eq(DELETED, false);
+        List<FileInfo> list = fileInfoMapper.selectList(query);
+
         // 文件是否存在
         boolean isFileExist = false;
         FileInfo fileInfo = null;
         for (FileInfo info : list) {
-            if (info.getFileName().equals(oldName)) {
+            String fileName = info.getFileName();
+            // 新名称重复 返回错误
+            if (fileName.equals(newName)) {
+                return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_REPEAT_ERROR);
+            }
+            // 查询旧名称是否存在
+            if (!isFileExist && fileName.equals(oldName)) {
                 isFileExist = true;
                 fileInfo = info;
-                break;
             }
         }
         // 如果文件不存在
         if (!isFileExist) {
-            return new Result(StatusCode.SERVICE_ERROR, FILE_NOT_FOUND_ERROR);
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NOT_FOUND_ERROR);
         }
-        // 新名字不能重复
-        for (FileInfo info : list) {
-            if (info.getFileName().equals(newName)) {
-                return new Result(StatusCode.SERVICE_ERROR, FILE_NAME_REPEAT_ERROR);
-            }
-        }
+        // 当前时间
         Timestamp nowTime = DateTime.now().toTimestamp();
+        UpdateWrapper<FileInfo> update = new UpdateWrapper<>();
+
+        // 如果是文件夹
         if (fileInfo.getFileType().equals(FOLDER)) {
-            boolean update = update()
-                    .set(FILE_NAME, newName)
+            update.set(FILE_NAME, newName)
                     .set(UPDATE_TIME, nowTime)
-                    .eq(FILE_ID, fileInfo.getFileId())
-                    .update();
-            if (update) {
+                    .eq(FILE_ID, fileInfo.getFileId());
+            int result = fileInfoMapper.update(null, update);
+            if (result == 1) {
+                update.clear();
                 String oldPath = fileInfo.getFilePath() + fileInfo.getFileName() + "/";
                 String newPath = fileInfo.getFilePath() + newName + "/";
-                if (update()
-                        .setSql(FILE_PATH + " = concat('" + newPath + "', substr(" + FILE_PATH + ", " + (oldPath.length() + 1) + "))")
+                // 将文件夹下的文件路径修改
+                update.setSql(FILE_PATH + " = concat('" + newPath + "', substr(" + FILE_PATH + ", " + (oldPath.length() + 1) + "))")
                         .likeRight(FILE_PATH, oldPath)
-                        .eq(DELETED, false)
-                        .update()) {
-                    return new Result(StatusCode.OK, RENAME_SUCCESS);
-                }
+                        .eq(DELETED, false);
+                fileInfoMapper.update(null, update);
+                return new Result(StatusCode.OK, RENAME_SUCCESS);
             }
         } else {
             String fileType = FileNameUtil.extName(newName);
             String fileClass = fileClassMap(fileType);
-            boolean update = update()
-                    .set(FILE_NAME, newName)
+            update.set(FILE_NAME, newName)
                     .set(FILE_TYPE, fileType)
                     .set(FILE_CLASS, fileClass)
                     .set(UPDATE_TIME, nowTime)
-                    .eq(FILE_ID, fileInfo.getFileId())
-                    .update();
-            if (update) {
+                    .eq(FILE_ID, fileInfo.getFileId());
+            int result = fileInfoMapper.update(null, update);
+            if (result == 1) {
                 return new Result(StatusCode.OK, RENAME_SUCCESS);
             }
         }
+        // 删除redis
+        String redisKey = fileListKey(accountId, filePath);
+        stringRedisTemplate.delete(redisKey);
+
         return new Result(StatusCode.SERVICE_ERROR, RENAME_ERROR2);
     }
 
+    /**
+     * 复制或移动
+     *
+     * @param fromPath     原来路径
+     * @param fileNameList 选中文件名
+     * @param toPath       目标路径
+     * @param opera        操作 copy或move
+     * @return
+     */
     @Override
     public Result fileCopyOrMoveTo(String fromPath, Set<String> fileNameList, String toPath, String opera) {
         // 操作类型获取
@@ -287,7 +402,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         if (fileNameList.size() == 0) {
             return new Result(StatusCode.SERVICE_ERROR, PARAMS_ERROR);
         }
-        // 选中列表
+        // 获取选中列表
         List<FileInfo> selectedList = query().eq(OWNER_ID, accountId)
                 .eq(FILE_PATH, fromPath)
                 .in(FILE_NAME, fileNameList)
@@ -367,8 +482,16 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         } else {
             isSuccess = updateBatchById(selectedList);
         }
-        return isSuccess ? new Result(StatusCode.OK, operaFlag ? COPY_SUCCESS : MOVE_SUCCESS) :
-                new Result(StatusCode.SERVICE_ERROR, OPERATION_ERROR);
+        if (isSuccess) {
+            // 清除缓存
+            String redisKey1 = fileListKey(accountId, fromPath);
+            String redisKey2 = fileListKey(accountId, toPath);
+            stringRedisTemplate.delete(redisKey1);
+            stringRedisTemplate.delete(redisKey2);
+            return new Result(StatusCode.OK, operaFlag ? COPY_SUCCESS : MOVE_SUCCESS);
+        } else {
+            return new Result(StatusCode.SERVICE_ERROR, OPERATION_ERROR);
+        }
     }
 
     @Override

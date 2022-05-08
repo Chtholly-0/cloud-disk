@@ -1,5 +1,6 @@
 package com.blackcat.common.utils.constant;
 
+
 public class DatabaseConstant {
     //文件信息表字段
     public static final String OWNER_ID = "owner_id";
@@ -13,7 +14,7 @@ public class DatabaseConstant {
     public static final String UPDATE_TIME = "update_time";
     public static final String CREATE_TIME = "create_time";
 
-    //
+    //文件唯一表字段
     public static final String MD5 = "md5";
     public static final String REF_COUNT = "ref_count";
 
@@ -24,4 +25,6 @@ public class DatabaseConstant {
 
     public static final String FOLDER = "folder";
     public static final String ALL = "all";
+
+
 }

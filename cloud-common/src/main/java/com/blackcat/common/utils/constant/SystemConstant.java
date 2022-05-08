@@ -17,6 +17,7 @@ public class SystemConstant {
             put("gif", "picture");
             put("jpg", "picture");
             put("png", "picture");
+            put("ico", "picture");
             put("mp3", "music");
             put("mp4", "video");
             put("txt", "document");

@@ -16,7 +16,7 @@ public class RedisConstant {
     // 文件上传信息key头
     public static final String FILE_UPLOAD_KEY = "file:upload:";
 
-    public static String filePathListKey(String accountId, String filePath) {
-        return FILE_KEY + accountId + ":" + filePath;
+    public static String fileListKey(String accountId, String key) {
+        return FILE_KEY + accountId + ":" + key;
     }
 }
