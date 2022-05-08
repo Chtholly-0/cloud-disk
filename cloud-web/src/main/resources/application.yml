@@ -1,7 +1,7 @@
 server:
   port: 8888 # 端口
   tomcat:
-    connection-timeout: 180000
+    connection-timeout: 30000
 
 spring:
   datasource:
@@ -19,8 +19,8 @@ spring:
     port: 6379 # redis端口
   servlet:
     multipart:
-      max-file-size: 2048MB # 单个文件最大
-      max-request-size: 3072MB # 总文件最大
+      max-file-size: 20MB # 单个文件最大
+      max-request-size: 30MB # 总文件最大
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印日志
