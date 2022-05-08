@@ -3,7 +3,6 @@ package com.blackcat.service;
 import com.blackcat.common.dto.FileChunkDTO;
 import com.blackcat.common.utils.Result;
 import com.blackcat.common.dto.FileDeletedList;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Set;
 
@@ -22,9 +21,10 @@ public interface IFileInfoService {
 
     Result fileCopyOrMoveTo(String fromPath, Set<String> fileNameList, String toPath, String opera);
 
+    Result filePreCreate(String filePath, String fileName, Integer chunks, Long fileSize);
+
     Result uploadChunk(FileChunkDTO chunkDTO);
 
     Result mergeChunks(String identifier);
 
-    Result checkFileChunk(FileChunkDTO chunk);
 }

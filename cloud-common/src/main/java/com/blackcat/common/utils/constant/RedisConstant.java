@@ -6,17 +6,15 @@ public class RedisConstant {
     // token保存时长
     public static final Long LOGIN_USER_TTL = (24 * 60L);
 
-    // 文件信息列表key头
-    public static final String FILE_KEY = "file:";
-
     // 文件key存放时间
     public static final Long FILE_KEY_TTL = 10L;
-    // 文件操作key头
-    public static final String FILE_OPERA_KEY = "file:opera:";
-    // 文件上传信息key头
-    public static final String FILE_UPLOAD_KEY = "file:upload:";
 
-    public static String fileListKey(String accountId, String key) {
-        return FILE_KEY + accountId + ":" + key;
+    // 文件列表key
+    public static String fileListKey(String accountId, String filePath) {
+        return "file:" + accountId + ":path:" + filePath;
+    }
+    // 文件上传key
+    public static String fileUploadKey(String accountId, String requestId) {
+        return "file:" + accountId + ":upload:" + requestId;
     }
 }

@@ -6,7 +6,7 @@ import java.util.HashSet;
 
 public class SystemConstant {
     // 文件路径
-    public static final String FILE_SPACE_PATH = System.getProperty("user.dir") + File.separator + "file-space" + File.separator;
+    public static final String FILE_SPACE_PATH = System.getProperty("user.dir") + "file-space" + File.separator;
     // 类型映射
     private static final HashMap<String, String> fileClassMap;
     // 类型集合

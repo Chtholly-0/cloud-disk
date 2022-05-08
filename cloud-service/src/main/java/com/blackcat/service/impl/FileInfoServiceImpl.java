@@ -13,7 +13,6 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.blackcat.common.config.exception.DefinitionException;
 import com.blackcat.common.dto.FileChunkDTO;
-import com.blackcat.common.dto.FileChunkResultDTO;
 import com.blackcat.common.utils.Result;
 import com.blackcat.common.utils.UserHolder;
 import com.blackcat.common.utils.constant.StatusCode;
@@ -26,14 +25,6 @@ import com.blackcat.dao.pojo.FileIdent;
 import com.blackcat.dao.pojo.FileInfo;
 import com.blackcat.dao.pojo.User;
 import com.blackcat.service.IFileInfoService;
-import org.springframework.data.redis.connection.RedisClusterConnection;
-import org.springframework.data.redis.connection.RedisClusterNode;
-import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.connection.jedis.JedisClusterConnection;
-import org.springframework.data.redis.connection.jedis.JedisConnection;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static com.blackcat.common.utils.constant.DatabaseConstant.*;
 import static com.blackcat.common.utils.constant.MessageConstant.*;
@@ -494,79 +484,75 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         }
     }
 
+    /**
+     * 文件预创建
+     *
+     * @param filePath 文件路径
+     * @param fileName 文件名称
+     * @param chunks   文件总分块数
+     * @param fileSize 文件总大小
+     * @return
+     */
     @Override
-    public Result checkFileChunk(FileChunkDTO chunk) {
-        String identifier = chunk.getIdentifier();
-        // 判断md5值是否规范
-        if (!identifier.matches("[a-z0-9]+") || identifier.length() != 32) {
-            return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
-        }
-        // 获取用户信息已经文件信息
+    public Result filePreCreate(String filePath, String fileName, Integer chunks, Long fileSize) {
         UserDTO user = UserHolder.getUser();
+        // 用户id
         String accountId = user.getAccountId();
-        String filename = chunk.getFilename();
-        String filePath = chunk.getRelativePath();
-        Long fileSize = chunk.getTotalSize();
-        // 文件名不能非法
-        if (isNotValidFileName(filename)) {
-            return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
-        }
         // 文件路径是否存在
         if (isFilePathNotExist(accountId, filePath)) {
             return new Result(StatusCode.PARAMS_ERROR, FILE_PATH_NOT_ERROR);
         }
-        // 空间不足
+        // 文件名是否合法
+        if (isNotValidFileName(fileName)) {
+            return new Result(StatusCode.PARAMS_ERROR, FILE_NAME_ERROR);
+        }
+        // 判断剩余空间是否足够
         if (user.getFreeSpace() < fileSize) {
             return new Result(StatusCode.SERVICE_ERROR, SPACE_NOT_ENOUGH);
         }
+
+        // 现在时间
         Timestamp nowTime = DateTime.now().toTimestamp();
-        FileIdent fileIdent = fileIdentMapper.selectById(identifier);
-        FileChunkResultDTO resultDTO = new FileChunkResultDTO();
-        String message = null;
-        if (fileIdent != null) {
-            String fileType = FileNameUtil.extName(filename);
 
-            saveFileInfo(user, filePath, filename, fileType, fileSize, identifier, nowTime, true, null);
+        HashMap<String, String> map = new HashMap<>();
+        // 随机生成请求id
+        String requestId = IdUtil.simpleUUID();
+        map.put(FILE_PATH, filePath);
+        map.put(FILE_NAME, fileName);
+        map.put("chunks", String.valueOf(chunks));
+        map.put(FILE_SIZE, String.valueOf(fileSize));
+        map.put("time", nowTime.toString());
 
-            resultDTO.setSkipUpload(true);
-            message = FILE_UPLOAD_SUCCESS;
-        } else {
-            // 不存在 则不能跳过上传
-            resultDTO.setSkipUpload(false);
-            // 获取临时文件路径
-            String tempFilePath = getFolderPath(identifier) + "temp" + File.separator;
-            // 获取已经上传过的文件块id集合
-            Set<Integer> uploaded = new HashSet<>();
-            File tempFile = new File(tempFilePath);
-            if (tempFile.exists()) {
-                File[] files = tempFile.listFiles();
-                if (files != null) {
-                    for (File file : files) {
-                        uploaded.add(Integer.valueOf(file.getName()));
-                    }
-                }
-            }
-            resultDTO.setUploaded(uploaded);
-            // 将文件信息存储到redis
-            HashMap<String, String> map = new HashMap<>();
-            map.put("filename", filename);
-            map.put("relativePath", filePath);
-            map.put("totalChunks", chunk.getTotalChunks().toString());
-            map.put("totalSize", fileSize.toString());
-            map.put("time", nowTime.toString());
-            String fileUploadKey = FILE_UPLOAD_KEY + accountId + ":" + identifier;
-            stringRedisTemplate.opsForHash().putAll(fileUploadKey, map);
-        }
-        return new Result(StatusCode.OK, message, resultDTO);
+        String redisKey = fileUploadKey(accountId, requestId);
+        stringRedisTemplate.opsForHash().putAll(redisKey, map);
+
+        return new Result(StatusCode.OK, null, requestId);
     }
 
+    /**
+     * 上传文件分片
+     *
+     * @param chunkDTO 文件分片信息
+     * @return
+     */
     @Override
     public Result uploadChunk(FileChunkDTO chunkDTO) {
+        // 用户id与请求id
+        String accountId = UserHolder.getUser().getAccountId();
+        String requestId = chunkDTO.getIdentifier();
+        // 查询redis中是否存在
+        String redisKey = fileUploadKey(accountId, requestId);
+        if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(redisKey))) {
+            return new Result(StatusCode.PARAMS_ERROR, "请求不存在");
+        }
+
         // 分块目录
-        String tempFilePath = getFolderPath(chunkDTO.getIdentifier()) + "temp" + File.separator;
+        String tempFilePath = getFolderPath(requestId) + "temp" + File.separator;
         File dest = new File(tempFilePath + chunkDTO.getChunkNumber());
         if (!dest.exists()) {
-            dest.getParentFile().mkdirs();
+            if (!dest.getParentFile().exists()) {
+                dest.getParentFile().mkdirs();
+            }
             // 存储分片
             try {
                 chunkDTO.getFile().transferTo(dest);
@@ -574,49 +560,46 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 e.printStackTrace();
             }
         }
-        FileChunkResultDTO resultDTO = new FileChunkResultDTO();
-        resultDTO.setSkipUpload(false);
-        return new Result(StatusCode.OK, FILE_UPLOAD_SUCCESS, resultDTO);
+        return new Result(StatusCode.OK, FILE_UPLOAD_SUCCESS);
     }
 
     @Override
-    public Result mergeChunks(String identifier) {
+    public Result mergeChunks(String requestId) {
         UserDTO user = UserHolder.getUser();
         // 用户id
         String accountId = user.getAccountId();
         // redis文件上传信息key
-        String fileUploadKey = FILE_UPLOAD_KEY + accountId + ":" + identifier;
+        String redisKey = fileUploadKey(accountId, requestId);
         // 获取redis信息
-        Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(fileUploadKey);
+        Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(redisKey);
         if (map.size() == 0) {
             return new Result(StatusCode.PARAMS_ERROR, PARAMS_ERROR);
         }
-        String fileName = (String) map.get("filename");
-        String filePath = (String) map.get("relativePath");
-        Integer totalChunks = Integer.valueOf(map.get("totalChunks").toString());
-        long fileSize = Long.parseLong(map.get("totalSize").toString());
+        // 获取文件信息
+        String fileName = (String) map.get(FILE_NAME);
+        String filePath = (String) map.get(FILE_PATH);
+        Integer chunks = Integer.valueOf(map.get("chunks").toString());
+        long fileSize = Long.parseLong(map.get(FILE_SIZE).toString());
         String fileType = FileNameUtil.extName(fileName);
 
         // 获取文件夹路径
-        String folderPath = getFolderPath(identifier);
-        String fileTempPath = folderPath + "temp" + File.separator;
-        File tempFile = new File(fileTempPath);
+        String folderPath = getFolderPath(requestId);
+        String tempFilePath = folderPath + "temp" + File.separator;
+        File tempFile = new File(tempFilePath);
         // 文件真实名称
-        String trueName = IdUtil.simpleUUID() + ((fileType.length() == 0) ? "" : ("." + fileType));
+        String trueName = requestId + ((fileType.length() == 0) ? "" : ("." + fileType));
         File mergeFile = new File(folderPath + trueName);
         // 判断分块是否全有，有则开始合并
-        if (checkChunks(fileTempPath, totalChunks)) {
-            File fileTemp = new File(fileTempPath);
+        if (checkChunks(tempFilePath, chunks)) {
+            File fileTemp = new File(tempFilePath);
             final File[] files = fileTemp.listFiles();
             assert files != null;
-            List<File> fileList = Arrays.asList(files);
-            fileList.sort(Comparator.comparingInt(a -> Integer.parseInt(a.getName())));
-            if (!mergeFile.getParentFile().exists()) {
-                mergeFile.getParentFile().mkdirs();
-            }
+            // 文件名排序
+            Arrays.sort(files, Comparator.comparingInt(a -> Integer.parseInt(a.getName())));
+
             try (RandomAccessFile randomAccessFileWriter = new RandomAccessFile(mergeFile, "rw")) {
                 byte[] bytes = new byte[1024];
-                for (File file : fileList) {
+                for (File file : files) {
                     RandomAccessFile randomAccessFileReader = new RandomAccessFile(file, "r");
                     int len;
                     while ((len = randomAccessFileReader.read(bytes)) != -1) {
@@ -628,28 +611,30 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 e.printStackTrace();
             }
         } else { // 没有则返回错误信息
-            return new Result(StatusCode.SERVICE_ERROR, "合并失败, 数据块未上传完");
+            return new Result(StatusCode.SERVICE_ERROR, "数据块未上传完毕");
         }
         // 计算合并后文件md5值
         String md5 = SecureUtil.md5(mergeFile);
-        // 判断文件是否完整
-        if (!md5.equals(identifier) || mergeFile.length() != fileSize) {
-            FileUtil.del(mergeFile);
+        // 查找数据
+        QueryWrapper<FileIdent> query = new QueryWrapper<>();
+        query.eq(MD5, md5).last("limit 1");
+        FileIdent fileIdent = fileIdentMapper.selectOne(query);
+
+        boolean isFileExit = false;
+        if (fileIdent != null) {
+            isFileExit = true;
+            FileUtil.del(folderPath);
+        } else {
+            // 删除临时文件
             FileUtil.del(tempFile);
-            return new Result(StatusCode.SERVICE_ERROR, "文件数据异常, 请重新上传");
         }
-        Timestamp nowTime = DateTime.now().toTimestamp();
-        // 判断空间是否空余
-        if (user.getFreeSpace() < fileSize) {
-            return new Result(StatusCode.SERVICE_ERROR, SPACE_NOT_ENOUGH);
-        }
+         Timestamp nowTime = DateTime.now().toTimestamp();
         // 存储文件信息
-        saveFileInfo(user, filePath, fileName, fileType, fileSize, md5, nowTime, false, trueName);
+        saveFileInfo(user, filePath, fileName, fileType, fileSize, md5, nowTime, isFileExit, trueName);
 
         // 合并成功后删除redis信息
-        stringRedisTemplate.delete(fileUploadKey);
-        // 删除临时文件
-        FileUtil.del(tempFile);
+        stringRedisTemplate.delete(redisKey);
+
         return new Result(StatusCode.OK, FILE_UPLOAD_SUCCESS);
     }
 
@@ -758,9 +743,9 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     }
 
     // 获取文件夹路径
-    private String getFolderPath(String identifier) {
-        return FILE_SPACE_PATH + identifier.substring(0, 3) +
-                File.separator + identifier +
+    private String getFolderPath(String requestId) {
+        return FILE_SPACE_PATH + requestId.charAt(0) +
+                File.separator + requestId +
                 File.separator;
     }
 

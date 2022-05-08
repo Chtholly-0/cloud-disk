@@ -61,25 +61,25 @@ public class FileController {
         return fileInfoService.fileCopyOrMoveTo(fromPath, fileNameList, toPath, opera);
     }
 
-    // 检测文件是否存在
-    @GetMapping("/chunk")
-    public Result checkFileChunk(FileChunkDTO chunk) {
-        return fileInfoService.checkFileChunk(chunk);
+    // 文件预创建
+    @GetMapping("/preCreate")
+    public Result filePreCreate(@RequestParam String filePath, @RequestParam String fileName, @RequestParam Integer chunks, @RequestParam Long fileSize) {
+        return fileInfoService.filePreCreate(filePath, fileName, chunks, fileSize);
     }
 
-    // 上传分片
+    // 文件分片上传接口
     @PostMapping("/chunk")
     public Result uploadChunk(FileChunkDTO chunk) {
         return fileInfoService.uploadChunk(chunk);
     }
 
-    // 合并
+    // 文件合并接口
     @GetMapping("/merge")
     public Result mergeChunks(@RequestParam String identifier) {
         return fileInfoService.mergeChunks(identifier);
     }
 
-
+    // 测试接口
     @GetMapping("/test")
     public Result test(@RequestParam String filePath) {
         fileInfoService.isFilePathNotExist("", filePath);

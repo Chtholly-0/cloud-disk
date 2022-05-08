@@ -37,7 +37,6 @@ public class MessageConstant {
 
     public static final String ERROR = "出错啦！";
 
-    public static final String RENAME_ERROR = "存在相同文件名，重命名失败";
     public static final String RENAME_ERROR2 = "重命名失败";
     public static final String RENAME_SUCCESS = "重命名成功";
 

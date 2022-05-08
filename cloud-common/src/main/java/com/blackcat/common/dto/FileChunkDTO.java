@@ -45,8 +45,4 @@ public class FileChunkDTO {
      */
     private String filename;
 
-    /**
-     * 相对路径
-     */
-    private String relativePath;
 }
