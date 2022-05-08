@@ -563,6 +563,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         return new Result(StatusCode.OK, FILE_UPLOAD_SUCCESS);
     }
 
+    /**
+     * 合并文件块
+     *
+     * @param requestId 请求id
+     * @return
+     */
     @Override
     public Result mergeChunks(String requestId) {
         UserDTO user = UserHolder.getUser();
@@ -628,12 +634,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             // 删除临时文件
             FileUtil.del(tempFile);
         }
-         Timestamp nowTime = DateTime.now().toTimestamp();
+        Timestamp nowTime = DateTime.now().toTimestamp();
         // 存储文件信息
         saveFileInfo(user, filePath, fileName, fileType, fileSize, md5, nowTime, isFileExit, trueName);
 
         // 合并成功后删除redis信息
         stringRedisTemplate.delete(redisKey);
+        // 缓存路径redis删除
+        String redisKey2 = fileListKey(accountId, filePath);
+        stringRedisTemplate.delete(redisKey2);
 
         return new Result(StatusCode.OK, FILE_UPLOAD_SUCCESS);
     }
