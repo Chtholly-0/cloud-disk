@@ -11,6 +11,7 @@ import com.blackcat.common.dto.UserDTO;
 import com.blackcat.dao.mapper.UserMapper;
 import com.blackcat.dao.pojo.User;
 import com.blackcat.service.IUserService;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +29,9 @@ import static com.blackcat.common.utils.constant.RedisConstant.LOGIN_USER_TTL;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-
+    @Resource
+    private RedisTemplate<String, String> redisTemplate;
+    static final String key_pre="CHECK_CODE";
     @Override
     public Result login(Map<String, Object> loginFrom) {
         String accountId = (String) loginFrom.get("accountId");
@@ -90,4 +93,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         user.setAccountId(null);
         return new Result(StatusCode.OK, OPERATION_SUCCESS, user);
     }
+
+
 }

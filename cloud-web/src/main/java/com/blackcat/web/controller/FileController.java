@@ -2,14 +2,19 @@ package com.blackcat.web.controller;
 
 import com.blackcat.common.dto.FileChunkDTO;
 import com.blackcat.common.utils.Result;
+import com.blackcat.common.utils.UserHolder;
 import com.blackcat.common.utils.constant.StatusCode;
 
 import com.blackcat.common.dto.FileDeletedList;
 import com.blackcat.service.impl.FileInfoServiceImpl;
 
+import com.blackcat.service.service.FileService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
+import java.io.IOException;
 import java.util.Set;
 
 
@@ -18,7 +23,8 @@ import java.util.Set;
 public class FileController {
     @Resource
     private FileInfoServiceImpl fileInfoService;
-
+    @Resource
+    private FileService fileService;
     // 根据文件路径获取文件列表
     @GetMapping("/path")
     public Result getListByPath(@RequestParam String filePath) {
@@ -84,5 +90,13 @@ public class FileController {
     public Result test(@RequestParam String filePath) {
         fileInfoService.isFilePathNotExist("", filePath);
         return new Result(StatusCode.OK, "??????????");
+    }
+    //上传文件
+    @PostMapping("/uploading")
+    public Result uploadFile(MultipartFile uploadFile) throws IOException {
+
+
+        return  fileService.uploadFile(uploadFile);
+
     }
 }

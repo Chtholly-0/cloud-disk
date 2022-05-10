@@ -383,8 +383,8 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             return new Result(StatusCode.SERVICE_ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
         }
         // 不能在其子目录下
-        for (String name : fileNameList) {
-            if (toPath.indexOf(fromPath + name + "/") == 0) {
+        for (String url : fileNameList) {
+            if (toPath.indexOf(fromPath + url + "/") == 0) {
                 return new Result(StatusCode.SERVICE_ERROR, operaFlag ? COPY_ERROR : MOVE_ERROR);
             }
         }
@@ -797,7 +797,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         } else { // 不存在则插入文件标识表
             FileIdent fileIdent = new FileIdent();
             fileIdent.setMd5(md5);
-            fileIdent.setName(trueName);
+            fileIdent.setUrl(trueName);
             fileIdentMapper.insert(fileIdent);
         }
 

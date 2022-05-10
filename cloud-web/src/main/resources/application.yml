@@ -15,8 +15,8 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss # 时间格式
     time-zone: GMT+8 # 时间域
   redis:
-    host: localhost # redis地址
-    port: 6379 # redis端口
+    port: 6379
+    host: 192.168.136.160
   servlet:
     multipart:
       max-file-size: 20MB # 单个文件最大
@@ -25,3 +25,15 @@ mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印日志
     map-underscore-to-camel-case: true # 映射下划线转驼峰
+disk:
+  sms:
+    signName: 阿里云短信测试
+    templateCode: SMS_154950909
+    accessKey: LTAI5tCkyCK4WMPtyhvHP9zs
+    secret: nKDJcFgQm6Vt2UGcMqWcTJR6HPwHMm
+  oss:
+    accessKey: LTAI5tCkyCK4WMPtyhvHP9zs
+    secret: nKDJcFgQm6Vt2UGcMqWcTJR6HPwHMm
+    endpoint: oss-cn-chengdu.aliyuncs.com
+    bucketName: tanhua-wj
+    url: https://tanhua-wj.oss-cn-chengdu.aliyuncs.com/

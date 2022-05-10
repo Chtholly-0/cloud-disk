@@ -18,7 +18,7 @@ public class FileIdent implements Serializable {
     /**
      * 文件真实名
      */
-    private String name;
+    private String url;
 
     /**
      * 文件引用数
