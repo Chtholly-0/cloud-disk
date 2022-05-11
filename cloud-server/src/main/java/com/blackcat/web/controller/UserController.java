@@ -1,12 +1,7 @@
 package com.blackcat.web.controller;
 
 import com.blackcat.common.utils.Result;
-import com.blackcat.common.utils.UserHolder;
-import com.blackcat.common.utils.constant.StatusCode;
-import com.blackcat.dao.pojo.User;
 import com.blackcat.service.impl.UserServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -15,8 +10,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/user")
 public class UserController {
-    @Autowired
+    @Resource
     private UserServiceImpl userService;
+
     @RequestMapping("/login")
     public Result login(@RequestBody Map<String, Object> loginFrom) {
 

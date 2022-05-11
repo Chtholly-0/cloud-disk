@@ -13,6 +13,7 @@
         <module>cloud-service</module>
         <module>cloud-web</module>
         <module>cloud-common</module>
+        <module>cloud-server</module>
     </modules>
 
     <properties>

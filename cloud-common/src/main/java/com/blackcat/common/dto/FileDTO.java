@@ -1,7 +1,7 @@
 package com.blackcat.common.dto;
 
-import com.blackcat.dao.pojo.FileInfo;
 import lombok.Data;
+import org.apache.tomcat.jni.FileInfo;
 
 import java.io.Serializable;
 import java.sql.Timestamp;
