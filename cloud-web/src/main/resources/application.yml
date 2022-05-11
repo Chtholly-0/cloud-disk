@@ -21,6 +21,8 @@ spring:
     multipart:
       max-file-size: 20MB # 单个文件最大
       max-request-size: 30MB # 总文件最大
+  main:
+    allow-circular-references: true
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印日志
@@ -37,3 +39,4 @@ disk:
     endpoint: oss-cn-chengdu.aliyuncs.com
     bucketName: tanhua-wj
     url: https://tanhua-wj.oss-cn-chengdu.aliyuncs.com/
+
