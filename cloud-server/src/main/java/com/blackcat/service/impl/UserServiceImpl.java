@@ -29,9 +29,7 @@ import static com.blackcat.common.utils.constant.RedisConstant.LOGIN_USER_TTL;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-    @Resource
-    private RedisTemplate<String, String> redisTemplate;
-    static final String key_pre="CHECK_CODE";
+
     @Override
     public Result login(Map<String, Object> loginFrom) {
         String accountId = (String) loginFrom.get("accountId");

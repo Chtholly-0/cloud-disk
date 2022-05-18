@@ -10,8 +10,6 @@ import static com.blackcat.common.utils.constant.MessageConstant.ERROR;
 
 @Data
 public class Result implements Serializable {
-    private static final long serialVersionUID = -2435089504958177374L;
-
     /**
      * 状态码
      */
@@ -26,8 +24,6 @@ public class Result implements Serializable {
      * 数据
      */
     private Object data;
-
-    public Result(){}
 
     public Result(Integer code, String message) {
         this.code = code;

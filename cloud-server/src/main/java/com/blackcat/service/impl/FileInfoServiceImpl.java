@@ -797,7 +797,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         } else { // 不存在则插入文件标识表
             FileIdent fileIdent = new FileIdent();
             fileIdent.setMd5(md5);
-            fileIdent.setUrl(trueName);
+            fileIdent.setName(trueName);
             fileIdentMapper.insert(fileIdent);
         }
 
